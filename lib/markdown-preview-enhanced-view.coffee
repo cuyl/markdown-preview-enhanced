@@ -263,7 +263,7 @@ class MarkdownPreviewEnhancedView extends ScrollView
       editorHeight = @editor.getElement().getHeight()
 
       firstVisibleScreenRow = @editor.getFirstVisibleScreenRow()
-      lastVisibleScreenRow = firstVisibleScreenRow + Math.floor(editorHeight / @editor.getLineHeightInPixels())
+      lastVisibleScreenRow = firstVisibleScreenRow + @editor.rowsPerPage
 
       lineNo = Math.floor((firstVisibleScreenRow + lastVisibleScreenRow) / 2)
 
