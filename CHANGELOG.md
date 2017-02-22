@@ -1,3 +1,29 @@
+## 0.9.12  
+* [x] fix issue [#255](https://github.com/shd101wyy/markdown-preview-enhanced/issues/255) deprecated call.  
+* [x] add whitelist for protocols [#288](https://github.com/shd101wyy/markdown-preview-enhanced/issues/288).  
+* [x] update docs.   
+* [x] change variable `rootDirectoryPath` to `fileDirectoryPath`.
+
+## 0.9.10
+* [x] support standard code fencing for graphs. [#286](https://github.com/shd101wyy/markdown-preview-enhanced/issues/286).   
+
+## 0.9.9  
+* [x] enhance code chunk. Now support `matplotlib` very well.   [#280](https://github.com/shd101wyy/markdown-preview-enhanced/issues/280).   
+```sh
+matplotlib: true      # enable inline matplotlib plot.  
+continue: true | id   # continue last code chunk or code chunk with id.  
+element: "<canvas id=\"hi\"></canvas>" # element to append.    
+```
+* [x] add `Markdown Preview Enhanced: Toggle Live Update`. And improve scroll sync when live update is disabled.  
+* [x] add `FAQ` section.  
+* [x] add `mathJaxProcessEnvironments` options that allows `processEnvironments` for MathJax.  
+* [ ] add cnpm url for phantomjs.  
+
+## 0.9.8  
+* [x] fix issue [#273](https://github.com/shd101wyy/markdown-preview-enhanced/issues/273). thanks for pull request from `@cuyl`.  
+* [x] added `markdown` output for code chunk.  
+
+
 ## 0.9.7  
 * [x] add relative image path option for exporting html. fix issue [#264](https://github.com/shd101wyy/markdown-preview-enhanced/issues/264).  
 * [x] fix zen mode.

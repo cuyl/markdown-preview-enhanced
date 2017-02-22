@@ -13,13 +13,14 @@ toc = require('./toc')
 {scopeForLanguageName} = require './extension-helper'
 customSubjects = require './custom-comment'
 fileImport = require('./file-import.coffee')
-
+{protocolsWhiteListRegExp} = require('./protocols-whitelist')
 
 mathRenderingOption = atom.config.get('markdown-preview-enhanced.mathRenderingOption')
 mathRenderingIndicator = inline: [['$', '$']], block: [['$$', '$$']]
 enableWikiLinkSyntax = atom.config.get('markdown-preview-enhanced.enableWikiLinkSyntax')
 frontMatterRenderingOption = atom.config.get('markdown-preview-enhanced.frontMatterRenderingOption')
 globalMathTypesettingData = {}
+useStandardCodeFencingForGraphs = atom.config.get('markdown-preview-enhanced.useStandardCodeFencingForGraphs')
 
 TAGS_TO_REPLACE = {
     '&': '&amp;',
@@ -30,9 +31,24 @@ TAGS_TO_REPLACE = {
     '\/', '&#x2F;',
     '\\', '&#x5C;',
 }
+
+TAGS_TO_REPLACE_REVERSE = {
+    '&amp;': '&',
+    '&lt;': '<',
+    '&gt;': '>',
+    '&quot;': '"',
+    '&apos;': '\'',
+    '&#x27;': '\'',
+    '&#x2F;': '\/',
+    '&#x5C;': '\\',
+}
+
 highlighter = null
 String.prototype.escape = ()->
-  this.replace /[&<>"'\/\\]/g, (tag)-> TAGS_TO_REPLACE[tag] || tag
+  this.replace /[&<>"'\/\\]/g, (tag)-> TAGS_TO_REPLACE[tag] or tag
+
+String.prototype.unescape = ()->
+  this.replace /\&(amp|lt|gt|quot|apos|\#x27|\#x2F|\#x5C)\;/g, (whole)-> TAGS_TO_REPLACE_REVERSE[whole] or whole
 
 ####################################################
 ## Mermaid
@@ -99,6 +115,9 @@ atom.config.observe 'markdown-preview-enhanced.enableWikiLinkSyntax',
 atom.config.observe 'markdown-preview-enhanced.frontMatterRenderingOption',
   (flag)->
     frontMatterRenderingOption = flag
+
+atom.config.observe 'markdown-preview-enhanced.useStandardCodeFencingForGraphs', (flag)->
+  useStandardCodeFencingForGraphs = flag
 
 #################################################
 ## Remarkable
@@ -519,9 +538,9 @@ checkGraph = (graphType, graphArray=[], preElement, text, option, $, offset=-1)-
 # resolve image path and pre code block...
 # check parseMD function, 'option' is the same as the option in paseMD.
 resolveImagePathAndCodeBlock = (html, graphData={}, codeChunksData={},  option={})->
-  {rootDirectoryPath, projectDirectoryPath} = option
+  {fileDirectoryPath, projectDirectoryPath} = option
 
-  if !rootDirectoryPath
+  if !fileDirectoryPath
     return
 
   $ = cheerio.load(html)
@@ -537,16 +556,16 @@ resolveImagePathAndCodeBlock = (html, graphData={}, codeChunksData={},  option={
     src = img.attr(srcTag)
 
     if src and
-      (!(src.match(/^(http|https|atom|file)\:\/\//) or
+      (!(src.match(protocolsWhiteListRegExp) or
         src.startsWith('data:image/') or
         src[0] == '#' or
         src[0] == '/'))
       if !option.useRelativeImagePath
-        img.attr(srcTag, 'file:///'+path.resolve(rootDirectoryPath,  src))
+        img.attr(srcTag, 'file:///'+path.resolve(fileDirectoryPath,  src))
 
     else if (src and src[0] == '/')  # absolute path
       if option.useRelativeImagePath
-        img.attr(srcTag, path.relative(rootDirectoryPath, path.resolve(projectDirectoryPath, '.' + src)))
+        img.attr(srcTag, path.relative(fileDirectoryPath, path.resolve(projectDirectoryPath, '.' + src)))
       else
         img.attr(srcTag, 'file:///'+path.resolve(projectDirectoryPath, '.' + src))
 
@@ -592,15 +611,10 @@ resolveImagePathAndCodeBlock = (html, graphData={}, codeChunksData={},  option={
 
       buttonGroup = '<div class="btn-group"><div class="run-btn btn"><span>▶︎</span></div><div class=\"run-all-btn btn\">all</div></div>'
 
-    outputDiv = ''
-    idMatch = parameters.match(/\s*id\s*:\s*\"([^\"]*)\"/)
-    if idMatch and idMatch[1] and codeChunksData[idMatch[1]]
-      outputDiv = '<div class="output-div">' + (codeChunksData[idMatch[1]].outputDiv?.innerHTML or '') + '</div>'
-
     statusDiv = '<div class="status">running...</div>'
 
-    $el = $("<div class=\"code-chunk\">" + highlightedBlock + buttonGroup + statusDiv + outputDiv + '</div>')
-    $el.attr 'data-lang': lang, 'data-args': parameters, 'data-line': lineNo, 'data-code': text
+    $el = $("<div class=\"code-chunk\">" + highlightedBlock + buttonGroup + statusDiv + '</div>')
+    $el.attr 'data-lang': lang, 'data-args': parameters, 'data-line': lineNo, 'data-code': text, 'data-root-directory-path': fileDirectoryPath
 
     $(preElement).replaceWith $el
 
@@ -621,7 +635,19 @@ resolveImagePathAndCodeBlock = (html, graphData={}, codeChunksData={},  option={
       else
         text = ''
 
-    if lang.match(/^\@mermaid/)
+    if useStandardCodeFencingForGraphs
+      mermaidRegExp = /^\@{0,1}mermaid/
+      plantumlRegExp = /^\@{0,1}(plantuml|puml)/
+      wavedromRegExp = /^\@{0,1}wavedrom/
+      vizRegExp = /^\@{0,1}(viz|dot)/
+    else # only works with @ appended at front
+      mermaidRegExp = /^\@mermaid/
+      plantumlRegExp = /^\@(plantuml|puml)/
+      wavedromRegExp = /^\@wavedrom/
+      vizRegExp = /^\@(viz|dot)/
+
+
+    if lang.match mermaidRegExp
       mermaid.parseError = (err, hash)->
         renderCodeBlock(preElement, err, 'text')
 
@@ -632,13 +658,13 @@ resolveImagePathAndCodeBlock = (html, graphData={}, codeChunksData={},  option={
 
         mermaidOffset += 1
 
-    else if lang.match(/^\@(plantuml|puml)/)
+    else if lang.match plantumlRegExp
       checkGraph 'plantuml', graphData.plantuml_s, preElement, text, option, $
 
-    else if lang.match(/^\@wavedrom/)
+    else if lang.match wavedromRegExp
       checkGraph 'wavedrom', graphData.wavedrom_s, preElement, text, option, $, wavedromOffset
       wavedromOffset += 1
-    else if lang.match(/^\@(viz|dot)/)
+    else if lang.match vizRegExp
       checkGraph 'viz', graphData.viz_s, preElement, text, option, $
     else if lang[0] == '{' && lang[lang.length-1] == '}'
       renderCodeChunk(preElement, text, lang, lineNo, codeChunksData)
@@ -799,7 +825,7 @@ option = {
   hideFrontMatter:      bool, optional
   markdownPreview:      MarkdownPreviewEnhancedView, optional
 
-  rootDirectoryPath:    string, required
+  fileDirectoryPath:    string, required
                         the directory path of the markdown file.
   projectDirectoryPath: string, required
 }
@@ -853,7 +879,7 @@ parseMD = (inputString, option={})->
   {table:frontMatterTable, content:inputString, data:yamlConfig} = processFrontMatter(inputString, option.hideFrontMatter)
 
   # check document imports
-  {outputString:inputString, heightsDelta: HEIGHTS_DELTA} = fileImport(inputString, {filesCache: markdownPreview?.filesCache, rootDirectoryPath: option.rootDirectoryPath, projectDirectoryPath: option.projectDirectoryPath, editor: markdownPreview?.editor})
+  {outputString:inputString, heightsDelta: HEIGHTS_DELTA} = fileImport(inputString, {filesCache: markdownPreview?.filesCache, fileDirectoryPath: option.fileDirectoryPath, projectDirectoryPath: option.projectDirectoryPath, editor: markdownPreview?.editor})
 
   # overwrite remark heading parse function
   md.renderer.rules.heading_open = (tokens, idx)=>

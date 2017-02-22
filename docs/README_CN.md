@@ -3,17 +3,22 @@ Markdown Preview Enhanced
 测试 Beta 版本    
 [![](https://img.shields.io/github/tag/shd101wyy/markdown-preview-enhanced.svg)](https://github.com/shd101wyy/markdown-preview-enhanced/releases) ![](https://img.shields.io/apm/dm/markdown-preview-enhanced.svg)  [![](https://img.shields.io/github/stars/shd101wyy/markdown-preview-enhanced.svg?style=social&label=Star)](https://github.com/shd101wyy/markdown-preview-enhanced)   
 
-[English Doc](../README.md)   
+[English Doc](../README.md)    
 
-版本 `0.9.6` 有新功能啦～    
-**Markdown Preview Enhanced** 现在支持导入 `csv`, `markdown`, `image`, 等格式文件。 该功能仍然在测试阶段，并且目前问题很多。更多相关信息请查看[此文档](doc-imports.md)。  
+`0.9.9` 版本以后，**markdown-preview-enhanced** 支持更加强劲的 **code chunk**。  
+你现在可以非常轻松地使用 python `matplotlib` 进行画图，而且可以创建由 [mplde](http://mpld3.github.io) 生成的交互图像。
+JavaScript code chunk (不是 node.js，而是浏览器 javascript) 也被支持了。你现在可以使用 [Char.js](http://www.chartjs.org/), [d3js](https://d3js.org/), [plotly](https://plot.ly/) 等库来进行画图。  
+[Code Chunk (beta) 文档](./docs/code-chunk.md) 已更新。
 
-![doc-imports](https://cloud.githubusercontent.com/assets/1908863/22716507/f352a4b6-ed5b-11e6-9bac-88837f111de0.gif)
-
-
-**注意**, 版本 `0.9.6` 改变了画图的语法。 我们将不再使用 <code>\`\`\`{mermaid}</code> 。 请用 <code>\`\`\`@mermaid</code> 代替。同样的，`@viz`, `@wavedrom`, `@puml` 和 `@plantuml`。  
+**这里是 [例子](https://cdn.rawgit.com/shd101wyy/markdown-preview-enhanced/f83acb43/test/code-chunks-test.html)，以及它的 [源文件](https://raw.githubusercontent.com/shd101wyy/markdown-preview-enhanced/master/test/code-chunks-test.md)。**    
 
 ---
+
+`0.9.10` 以后，<code>\`\`\`mermaid</code> 以及 <code>\`\`\`@mermaid</code> 都可以用来画图（应该不会再改了）。 同样的 `plantuml`, `wavedrom`, 以及 `viz` 也是。     
+
+---  
+
+推荐安装 [language-gfm-enhanced](https://atom.io/packages/language-gfm-enhanced) 来更好地与 markdown-preview-enhanced 协同工作.  
 
 如果你发现了 bug，遇到问题，或者想要开发者添加新的功能，请在 [这里](https://github.com/shd101wyy/markdown-preview-enhanced/issues) 留言。
 
@@ -27,6 +32,7 @@ Markdown Preview Enhanced
 	* [预览菜单](#预览菜单)
 	* [额外支持](#额外支持)
 	* [开发者](#开发者)
+	* [疑难解答](#疑难解答)
 	* [鸣谢](#鸣谢)
 	* [感谢](#感谢)
 
@@ -37,6 +43,7 @@ Markdown Preview Enhanced
 
 ## 支持特性
 - **编辑与预览滑动同步**  
+- **[导入外部文件](doc-imports.md)**
 - **[Code Chunks (beta)](./code-chunk.md)**
 - **[pandoc](./advanced-export.md)**
 - **[ebook](./ebook.md)**  
@@ -54,7 +61,6 @@ Markdown Preview Enhanced
 - 图片助手
 - [Footnotes](https://github.com/shd101wyy/markdown-preview-enhanced/issues/35)  
 - [Front Matter](https://github.com/shd101wyy/markdown-preview-enhanced/issues/100)  
-- [导入外部文件](doc-imports.md)
 - 以及更多特性...
 
 ## 该插件如何工作
@@ -67,16 +73,16 @@ Markdown Preview Enhanced
   - 想要支持数学表达式的高亮，请考虑安装 [language-gfm-enhanced](https://atom.io/packages/language-gfm-enhanced) 插件。
   - <img src="https://cloud.githubusercontent.com/assets/1908863/14398210/0e408954-fda8-11e5-9eb4-562d7c0ca431.gif">
 - [mermaid](https://github.com/knsv/mermaid) 来渲染 flowchart 和 sequence diagram  
-	- 代码块 `@mermaid` 里的内容将被 [mermaid](https://github.com/knsv/mermaid) 渲染。  
+	- 代码块 `mermaid` （或者 `@mermaid`） 里的内容将被 [mermaid](https://github.com/knsv/mermaid) 渲染。  
 	- 查看 [mermaid 文档](http://knsv.github.io/mermaid/#flowcharts-basic-syntax) 来了解如何画图。   
 	- ![mermaid](https://cloud.githubusercontent.com/assets/1908863/22724073/622549ac-ed89-11e6-9a3e-6f35dd3f1c81.gif)
 - [PlantUML](http://plantuml.com/) 来渲染图形。 (**Java** 是必须的依赖)  
 	- 你可以安装 [Graphviz](http://www.graphviz.org/) （非必需） 来生成其他种类的图形。  
-	- 代码块 `@puml` 或者 `@plantuml` 里的内容将被 [PlantUML](http://plantuml.com/) 渲染。  
+	- 代码块 `puml` 或者 `plantuml`（或者 `@puml` 或者 `@plantuml`）里的内容将被 [PlantUML](http://plantuml.com/) 渲染。  
 - [WaveDrom](http://wavedrom.com/) 来渲染 digital timing diagram.  
-	- 代码块 `@wavedrom` 里的内容将被 [wavedrom](https://github.com/drom/wavedrom) 渲染。
+	- 代码块 `wavedrom` （或者 `@wavedrom`）里的内容将被 [wavedrom](https://github.com/drom/wavedrom) 渲染。
 - [Viz.js](https://github.com/mdaines/viz.js) 来渲染 [dot language](https://en.wikipedia.org/wiki/DOT_(graph_description_language)) 图形.  
-	- 代码块 `@viz` 里的内容将被 [Viz.js](https://github.com/mdaines/viz.js) 渲染。
+	- 代码块 `viz`（或者 `@viz`）里的内容将被 [Viz.js](https://github.com/mdaines/viz.js) 渲染。
     - 在代码块第一行，可以通过`engine:[engine_name]`形式选择渲染引擎。比如:`engine:dot`。支持 `circo`, `dot`, `neato`, `osage`, or `twopi` 引擎。 `dot` 是默认引擎.    
 - [reveal.js](https://github.com/hakimel/reveal.js) 来渲染漂亮的 presentations.
 	- [点击这里](https://rawgit.com/shd101wyy/markdown-preview-enhanced/master/docs/presentation-intro.html) 查看相关介绍。
@@ -95,6 +101,9 @@ Markdown Preview Enhanced
   - 生成 TOC （预览需要被事先开启）[文档在这里](./toc.md)。   
 - <strong>Markdown Preview Enhanced: Toggle Scroll Sync </strong>
   - 开关编辑和预览的滑动同步.
+- <strong>Markdown Preview Enhanced: Toggle Live Update </strong>
+	- 开关预览实时更新。
+	- 如果关闭了实时更新，那么预览将只会在文件保存的时候更新。
 - <strong>Markdown Preview Enhanced: Toggle Break On Single Newline </strong>
 - <strong>Markdown Preview Enhanced: Insert New Slide </strong>  
 - <strong>Markdown Preview Enhanced: Insert Table </strong>
@@ -141,6 +150,29 @@ Markdown Preview Enhanced
 ## 开发者
 手动安装指南可以在 [这里](./DEVELOPER.md) 找到。   
 扩展该插件也十分简单，更多信息请点击 [这里](./extension.md)。
+
+## 疑难解答
+1. **在国内（中国大陆）安装不了怎么办？**  
+由于该插件的依赖之一 [phantomjs](https://github.com/Medium/phantomjs) 需要翻墙才可以安装。所以我推荐以下两种方式解决此问题：
+	1. 本地提前安装好 phantomjs。 Mac 用户可以直接 terminal 运行 `brew install phantomjs` 安装。然后再尝试安装此插件。
+	2. 安装 `cnpm`。具体请查看 [@Niefee](https://github.com/shd101wyy/markdown-preview-enhanced/issues/231#issuecomment-280912665) 的回答。
+2. **在 atom 的插件市场中找不到这个插件啊？**  
+请搜索全称 `markdown-preview-enhanced`。[#269](https://github.com/shd101wyy/markdown-preview-enhanced/issues/269)。
+3. **我导出了一个 html 文件，想把它放到我的服务器上。但是数学符号等不能正确显示，该怎么办？**  
+请确定导出 html 文件的时候，`Use CDN hosted resources` 这一选项勾上了。  
+4. **我导出了一个 presentation 的 html 文件，想把它放到我的服务器上，但是无法正确显示？**  
+请参考上一个问题。
+5. **我想用黑色的预览主题，该怎么做？**  
+如果你想要你的预览和你的 atom 编辑器风格颜色一致，你可以到该插件的设置中，将 `Use Github.com style` 以及 `Use Github.com syntax theme` 给关闭。 [#281](https://github.com/shd101wyy/markdown-preview-enhanced/issues/281)   
+还有一种方法是运行 `Markdown Preview Enhanced: Customize Css` 命令，然后修改 `style.less` 文件。[#68](https://github.com/shd101wyy/markdown-preview-enhanced/issues/68)，[#89](https://github.com/shd101wyy/markdown-preview-enhanced/issues/89)。
+6. **预览特别特别卡，该怎么做？**  
+如果你的预览特别卡，那么可能是你的文件太大了，或者用到的数学式，画的图过多。  
+这里我建议关闭 `Live Update` 的功能。可以运行 `Markdown Preview Enhanced: Toggle Live Update` 来关闭（disable）。然后预览就只会在你保存文件的时候刷新了，这样就不会卡了。  
+7. **你需要工作吗？（喂！这和疑难解答有什么关系？）**  
+是的！我正在（准备）找工作 `(*/ω＼*)`。（任何国家（地区）都可以考虑，或者远程工作也行）    
+我是一名正在 伊利诺伊大学厄巴纳-香槟分校 (UIUC) 学习的计算机科学专业的学生。我即将于今年（2017）5 月份毕业拿到我的 BS/MCS 学位。  
+我个人对游戏开发和网络前端很感兴趣。如果你对我感兴趣想给予我工作机会，请通过我的学校邮箱 `ywang189@illinois.edu` 或者我的个人邮箱 `shd101wyy@(sina|gmail)\.com` 联系我。 （如果我没来得及回复，请不要生气，我可能在赶作业 (✿◡‿◡)）。  
+非常感谢 :)  
 
 ## 鸣谢  
 * [remarkable](https://github.com/jonschlinkert/remarkable) - Markdown parser, done right. Commonmark support, extensions, syntax plugins, high speed - all in one. Gulp and metalsmith plugins are also available.  

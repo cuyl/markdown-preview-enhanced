@@ -5,15 +5,20 @@ Still Beta Version!
 
 [中文文档](./docs/README_CN.md)   
 
-New Feature for version `0.9.6`! Oh yeah!  
-**Markdown Preview Enhanced** now supports importing `csv`, `markdown`, `image`, etc external files. This feature is still in testing phase, and it is very buggy now. More information can be found [here](./docs/doc-imports.md).     
+From version `0.9.9`, **markdown-preview-enhanced** supports more **powerful code chunk**.   
+You can now use python `matplotlib` very easily to make plots and even create interactive figures powered by [mpld3](http://mpld3.github.io).   
+JavaScript code chunk (not node.js but browser javascript) is also supported so that you can use libraries like [Char.js](http://www.chartjs.org/), [d3js](https://d3js.org/), [plotly](https://plot.ly/) to draw graphs.  
+[Code Chunk (beta) Doc](./docs/code-chunk.md) is also updated.        
 
-![doc-imports](https://cloud.githubusercontent.com/assets/1908863/22716507/f352a4b6-ed5b-11e6-9bac-88837f111de0.gif)
+**Here is a  [demo](https://cdn.rawgit.com/shd101wyy/markdown-preview-enhanced/f83acb43/test/code-chunks-test.html), and its [raw file](https://raw.githubusercontent.com/shd101wyy/markdown-preview-enhanced/master/test/code-chunks-test.md).**  
 
+---
 
-**Attension**, version `0.9.6` has changed the way of drawing graphs. We do not use <code>\`\`\`{mermaid}</code> anymore. Please write <code>\`\`\`@mermaid</code> instead. Same for `@viz`, `@wavedrom`, `@puml` and `@plantuml`.  
+From version `0.9.10`, both <code>\`\`\`mermaid</code> and <code>\`\`\`@mermaid</code> can be used to draw graphs. Same for `plantuml`, `wavedrom`, and `viz`.     
 
 ---  
+
+[language-gfm-enhanced](https://atom.io/packages/language-gfm-enhanced) is recommended to be installed to work with markdown-preview-enhanced.  
 
 Post [here](https://github.com/shd101wyy/markdown-preview-enhanced/issues) if you request new features or you want to report bugs ;)
 
@@ -28,6 +33,7 @@ Post [here](https://github.com/shd101wyy/markdown-preview-enhanced/issues) if yo
 	* [Preview Context Menu](#preview-context-menu)
 	* [Extra](#extra)
 	* [For Developer](#for-developer)
+	* [FAQ](#faq)
 	* [Credits](#credits)
 	* [Thanks](#thanks)
 
@@ -38,6 +44,7 @@ Post [here](https://github.com/shd101wyy/markdown-preview-enhanced/issues) if yo
 
 ## Features
 - **2-side scroll sync**  
+- **[Import external files](./docs/doc-imports.md)**
 - **[Code Chunks (beta)](./docs/code-chunk.md)**
 - **[pandoc](./docs/advanced-export.md)**
 - **[ebook](./docs/ebook.md)**
@@ -55,7 +62,6 @@ You can choose [MathJax](https://github.com/mathjax/MathJax) or [KaTeX](https://
 - Image Helper
 - [Footnotes](https://github.com/shd101wyy/markdown-preview-enhanced/issues/35)  
 - [Front Matter](https://github.com/shd101wyy/markdown-preview-enhanced/issues/100)
-- [Import external files](./docs/doc-imports.md)
 - And many more...
 
 ## How it works
@@ -68,16 +74,16 @@ You can choose [MathJax](https://github.com/mathjax/MathJax) or [KaTeX](https://
 		**MathJax** supports more symbols, but it has slower rendering speed compared to **KaTeX**.
   - <img src="https://cloud.githubusercontent.com/assets/1908863/14398210/0e408954-fda8-11e5-9eb4-562d7c0ca431.gif">
 - [mermaid](https://github.com/knsv/mermaid) to render flowchart and sequence diagram.  
-	- code block with `@mermaid` notation will be rendered by [mermaid](https://github.com/knsv/mermaid)  
+	- code block with `mermaid` (or `@mermaid`) notation will be rendered by [mermaid](https://github.com/knsv/mermaid)  
 	- check [mermaid doc](http://knsv.github.io/mermaid/#flowcharts-basic-syntax) for more information about how to create flowchart and sequence diagram   
 	- ![mermaid](https://cloud.githubusercontent.com/assets/1908863/22724073/622549ac-ed89-11e6-9a3e-6f35dd3f1c81.gif)
 - [PlantUML](http://plantuml.com/) to create multiple kinds of graph. (**Java** is required)  
 	- You can install [Graphviz](http://www.graphviz.org/) (not required) to generate all diagram types.
-	- code block with `@puml` or `@plantuml` notation will be rendered by [PlantUML](http://plantuml.com/).  
+	- code block with `puml` or `plantuml` or (`@puml` or `@plantuml`) notation will be rendered by [PlantUML](http://plantuml.com/).  
 - [WaveDrom](http://wavedrom.com/) to create digital timing diagram.  
-	- code block with `@wavedrom` notation will be rendered by [wavedrom](https://github.com/drom/wavedrom).
+	- code block with `wavedrom` (or `@wavedrom`) notation will be rendered by [wavedrom](https://github.com/drom/wavedrom).
 - [Viz.js](https://github.com/mdaines/viz.js) to render [dot language](https://en.wikipedia.org/wiki/DOT_(graph_description_language)) graph.  
-	- code block with `@viz` notation will be rendered by [Viz.js](https://github.com/mdaines/viz.js).
+	- code block with `viz` (or `@viz`) notation will be rendered by [Viz.js](https://github.com/mdaines/viz.js).
     - add `engine:[engine_name]` at the first line of code block to choose different render engine. For example `engine:dot`. Engine `circo`, `dot`, `neato`, `osage`, or `twopi` are supported. Default engine is `dot`.   
 - [reveal.js](https://github.com/hakimel/reveal.js) to render beautiful presentations.
 	- [Click here](https://rawgit.com/shd101wyy/markdown-preview-enhanced/master/docs/presentation-intro.html) to see the introduction.
@@ -96,6 +102,9 @@ To use this package, press <kbd>cmd + shift + p</kbd>   in atom editor first to 
   - Generate TOC (need preview toggled). [doc is here](./docs/toc.md).    
 - <strong>Markdown Preview Enhanced: Toggle Scroll Sync </strong>
   - Enable/Disable scroll sync for preview.
+- <strong>Markdown Preview Enhanced: Toggle Live Update </strong>
+	 - Enable/Disable live update for preview.
+	 - If disabled, preview will only be rendered when the file is saved.  
 - <strong>Markdown Preview Enhanced: Toggle Break On Single Newline </strong>
   - Enable/Disable breaking on single newline.
 - <strong>Markdown Preview Enhanced: Insert New Slide </strong>  
@@ -142,6 +151,26 @@ To use this package, press <kbd>cmd + shift + p</kbd>   in atom editor first to 
 ## For Developer
 Manual installation instruction can be found [here](./docs/DEVELOPER.md).   
 It is also very easy to write your own extension, more information can be found [here](./docs/extension.md).
+
+## FAQ
+1. **I am not able to find this package in atom?**  
+Please search for the full name of this package. `markdown-preview-enhanced`  
+2. **I exported a html file, and I want to deploy it on my own remote server. But math typesetting (MathJax or KaTeX) doesn't work, what should I do?**  
+Please make sure you have `Use CDN hosted resources` checked when exporting.  
+3. **I exported a presentation html file, and I want to put it on my Github Page or deploy remotely?**  
+Please check the last question.  
+4. **How do I get dark style preview?**  
+If you want the style of the preview to be consistent with your atom editor, go to settings of this package, then uncheck `Github.com style` and `Use Github.com syntax theme`. [#281](https://github.com/shd101wyy/markdown-preview-enhanced/issues/281).  
+Or you can run `Markdown Preview Enhanced: Customize Css` command, then modify the `style.less` file.  [#68](https://github.com/shd101wyy/markdown-preview-enhanced/issues/68), [#89](https://github.com/shd101wyy/markdown-preview-enhanced/issues/89).
+5. **The preview is super super lagging?**  
+This might happen when your markdown file is too big, or you are using too many math or graphs.  
+Therefore I would like to recommend you to disable `Live Update` functionality.  
+You can run `Markdown Preview Enhanced: Toggle Live Update` to disable it.  
+6. **Do you need a job? (Huh... is this question really related to FAQ???)**  
+Yes, I am looking for job. `(*/ω＼*)` (Any country (region) should be fine for me. I can also work remotely.)     
+I am an international student from China currently studying at University of Illinois at Urbana-Champaign. I am a CS major student and I will get my BS/MCS degree this May (2017).  
+I am personally very interested in game development and front-end web development. If you are willing to offer me a job opportunity, please contact me by my school email `ywang189@illinois.edu` or my personal email `shd101wyy@(sina|gmail).com`. (plz don't be mad if you don't get any response from me because I might be busy working on my homework `(✿◡‿◡)).      
+Thank you very much :)  
 
 ## Credits  
 * [remarkable](https://github.com/jonschlinkert/remarkable) - Markdown parser, done right. Commonmark support, extensions, syntax plugins, high speed - all in one. Gulp and metalsmith plugins are also available.  

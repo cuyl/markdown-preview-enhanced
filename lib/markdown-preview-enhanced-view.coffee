@@ -7,7 +7,8 @@ temp = require('temp').track()
 pdf = require 'html-pdf'
 katex = require 'katex'
 matter = require('gray-matter')
-{allowUnsafeEval} = require 'loophole'
+{allowUnsafeEval, allowUnsafeNewFunction} = require 'loophole'
+cheerio = null
 
 {getMarkdownPreviewCSS} = require './style'
 plantumlAPI = require './puml'
@@ -17,6 +18,7 @@ pandocConvert = require './pandoc-convert'
 markdownConvert = require './markdown-convert'
 codeChunkAPI = require './code-chunk'
 CACHE = require './cache'
+{protocolsWhiteListRegExp} = require './protocols-whitelist'
 
 module.exports =
 class MarkdownPreviewEnhancedView extends ScrollView
@@ -30,7 +32,7 @@ class MarkdownPreviewEnhancedView extends ScrollView
 
     @tocConfigs = null
     @scrollMap = null
-    @rootDirectoryPath = null
+    @fileDirectoryPath = null
     @projectDirectoryPath = null
 
     @disposables = null
@@ -38,9 +40,11 @@ class MarkdownPreviewEnhancedView extends ScrollView
     @liveUpdate = true
     @scrollSync = true
     @scrollDuration = null
+    @textChanged = false
 
     @mathRenderingOption = atom.config.get('markdown-preview-enhanced.mathRenderingOption')
     @mathRenderingOption = if @mathRenderingOption == 'None' then null else @mathRenderingOption
+    @mathJaxProcessEnvironments = atom.config.get('markdown-preview-enhanced.mathJaxProcessEnvironments')
 
     @parseDelay = Date.now()
     @editorScrollDelay = Date.now()
@@ -182,7 +186,7 @@ class MarkdownPreviewEnhancedView extends ScrollView
 
     @tocConfigs = null
     @scrollMap = null
-    @rootDirectoryPath = @editor.getDirectoryPath()
+    @fileDirectoryPath = @editor.getDirectoryPath()
     @projectDirectoryPath = @getProjectDirectoryPath()
     @firstTimeRenderMarkdowon = true
     @filesCache = {}
@@ -219,6 +223,7 @@ class MarkdownPreviewEnhancedView extends ScrollView
       # reset refresh button onclick event
       @element.getElementsByClassName('refresh-btn')?[0]?.onclick = ()=>
         @filesCache = {}
+        codeChunkAPI.clearCache()
         @renderMarkdown()
 
       # rebind tag a click event
@@ -247,15 +252,21 @@ class MarkdownPreviewEnhancedView extends ScrollView
       @element.innerHTML = '<p style="font-size: 24px;"> Open a markdown file to start preview </p>'
 
     @disposables.add @editor.onDidStopChanging ()=>
+      # @textChanged = true # this line has problem.
       if @liveUpdate
         @updateMarkdown()
 
     @disposables.add @editor.onDidSave ()=>
       if not @liveUpdate
+        @textChanged = true
         @updateMarkdown()
 
+    @disposables.add @editor.onDidChangeModified ()=>
+      if not @liveUpdate
+        @textChanged = true
+
     @disposables.add editorElement.onDidChangeScrollTop ()=>
-      if !@scrollSync or !@element or !@liveUpdate or !@editor or @presentationMode
+      if !@scrollSync or !@element or @textChanged or !@editor or @presentationMode
         return
       if Date.now() < @editorScrollDelay
         return
@@ -277,7 +288,7 @@ class MarkdownPreviewEnhancedView extends ScrollView
 
     # match markdown preview to cursor position
     @disposables.add @editor.onDidChangeCursorPosition (event)=>
-      if !@scrollSync or !@element or !@liveUpdate
+      if !@scrollSync or !@element or @textChanged
         return
       if Date.now() < @parseDelay
         return
@@ -303,7 +314,7 @@ class MarkdownPreviewEnhancedView extends ScrollView
 
   initViewEvent: ->
     @element.onscroll = ()=>
-      if !@editor or !@scrollSync or !@liveUpdate or @presentationMode
+      if !@editor or !@scrollSync or @textChanged or @presentationMode
         return
       if Date.now() < @previewScrollDelay
         return
@@ -374,7 +385,9 @@ class MarkdownPreviewEnhancedView extends ScrollView
 
     # liveUpdate?
     @settingsDisposables.add atom.config.observe 'markdown-preview-enhanced.liveUpdate',
-      (flag) => @liveUpdate = flag
+      (flag) =>
+        @liveUpdate = flag
+        @scrollMap = null
 
     # scroll sync?
     @settingsDisposables.add atom.config.observe 'markdown-preview-enhanced.scrollSync',
@@ -504,10 +517,11 @@ class MarkdownPreviewEnhancedView extends ScrollView
 
   renderMarkdown: ->
     if Date.now() < @parseDelay or !@editor or !@element
+      @textChanged = false
       return
     @parseDelay = Date.now() + 200
 
-    {html, slideConfigs, yamlConfig} = @parseMD(@formatStringBeforeParsing(@editor.getText()), {isForPreview: true, markdownPreview: this, @rootDirectoryPath, @projectDirectoryPath})
+    {html, slideConfigs, yamlConfig} = @parseMD(@formatStringBeforeParsing(@editor.getText()), {isForPreview: true, markdownPreview: this, @fileDirectoryPath, @projectDirectoryPath})
 
     html = @formatStringAfterParsing(html)
 
@@ -529,6 +543,8 @@ class MarkdownPreviewEnhancedView extends ScrollView
     @setInitialScrollPos()
     @addBackToTopButton()
     @addRefreshButton()
+
+    @textChanged = false
 
   setInitialScrollPos: ->
     if @firstTimeRenderMarkdowon
@@ -567,6 +583,7 @@ class MarkdownPreviewEnhancedView extends ScrollView
     refreshBtn.onclick = ()=>
       # clear cache
       @filesCache = {}
+      codeChunkAPI.clearCache()
 
       # render again
       @renderMarkdown()
@@ -605,19 +622,20 @@ class MarkdownPreviewEnhancedView extends ScrollView
               @element.scrollTop = offsetTop
       else
         a.onclick = ()=>
-          # open md and markdown preview
-          if href and not (href.startsWith('https://') or href.startsWith('http://'))
-            if path.extname(href) in ['.pdf', '.xls', '.xlsx', '.doc', '.ppt', '.docx', '.pptx'] # issue #97
-              @openFile href
-            else
-              if href.startsWith 'file:///'
-                href = href.slice(8) # remove protocal
-              # fix issue https://github.com/shd101wyy/markdown-preview-enhanced/issues/248
-              # ./link.md#heading
-              href = href.replace(/\.md(\s*)\#(.+)$/, '.md') # remove #anchor
-              atom.workspace.open href,
-                split: 'left',
-                searchAllPanes: true
+          return if !href
+          return if href.match(/^(http|https)\:\/\//) # the default behavior will open browser for that url.
+
+          if path.extname(href) in ['.pdf', '.xls', '.xlsx', '.doc', '.ppt', '.docx', '.pptx'] # issue #97
+            @openFile href
+          else if href.match(/^file\:\/\/\//)
+            # if href.startsWith 'file:///'
+            openFilePath = href.slice(8) # remove protocal
+            openFilePath = openFilePath.replace(/\.md(\s*)\#(.+)$/, '.md') # remove #anchor
+            atom.workspace.open openFilePath,
+              split: 'left',
+              searchAllPanes: true
+          else
+            @openFile href
 
     for a in as
       href = a.getAttribute('href')
@@ -637,7 +655,23 @@ class MarkdownPreviewEnhancedView extends ScrollView
         codeChunk.id = 'code_chunk_' + id
         running = @codeChunksData[id]?.running or false
         codeChunk.classList.add('running') if running
-        newCodeChunksData[id] = {running, outputDiv: codeChunk.getElementsByClassName('output-div')[0]}
+
+        # remove output-div and output-element
+        children = codeChunk.children
+        i = children.length - 1
+        while i >= 0
+          child = children[i]
+          if child.classList.contains('output-div') or child.classList.contains('output-element')
+            child.remove()
+          i -= 1
+
+        outputDiv = @codeChunksData[id]?.outputDiv
+        outputElement = @codeChunksData[id]?.outputElement
+
+        codeChunk.appendChild(outputElement) if outputElement
+        codeChunk.appendChild(outputDiv) if outputDiv
+
+        newCodeChunksData[id] = {running, outputDiv, outputElement}
       else # id not exist, create new id
         needToSetupChunksId = true
 
@@ -708,30 +742,69 @@ class MarkdownPreviewEnhancedView extends ScrollView
       i-=1
     return null
 
-  runCodeChunk: (codeChunk=null)->
-    codeChunk = @getNearestCodeChunk() if not codeChunk
-    return if not codeChunk
-    return if codeChunk.classList.contains('running')
-
+  # return false if meet error
+  # otherwise return
+  # {
+  #   cmd,
+  #   options,
+  #   code,
+  #   id,
+  # }
+  parseCodeChunk: (codeChunk)->
     code = codeChunk.getAttribute('data-code')
     dataArgs = codeChunk.getAttribute('data-args')
 
     options = null
     try
-      options = JSON.parse '{'+dataArgs.replace((/([(\w)|(\-)]+)(:)/g), "\"$1\"$2").replace((/'/g), "\"")+'}'
+      allowUnsafeEval ->
+        options = eval("({#{dataArgs}})")
+      # options = JSON.parse '{'+dataArgs.replace((/([(\w)|(\-)]+)(:)/g), "\"$1\"$2").replace((/'/g), "\"")+'}'
     catch error
       atom.notifications.addError('Invalid options', detail: dataArgs)
-      return
+      return false
 
     cmd =  options.cmd or codeChunk.getAttribute('data-lang')
+    id = options.id
 
-    # check id and save outputDiv to @codeChunksData
-    idMatch = dataArgs.match(/\s*id\s*:\s*\"([^\"]*)\"/)
+    # check options.continue
+    if options.continue
+      last = null
+      if options.continue == true
+        codeChunks = @element.getElementsByClassName 'code-chunk'
+        i = codeChunks.length - 1
+        while i >= 0
+          if codeChunks[i] == codeChunk
+            last = codeChunks[i - 1]
+            break
+          i--
+      else # id
+        last = document.getElementById('code_chunk_' + options.continue)
 
-    if !idMatch
+      if last
+        {code: lastCode, options: lastOptions} = @parseCodeChunk(last) or {}
+        lastOptions = lastOptions or {}
+        code = (lastCode or '') + '\n' + code
+
+        options.matplotlib = true if (lastOptions.matplotlib or lastOptions.mpl) # inherit matplotlib config
+      else
+        atom.notifications.addError('Invalid continue for code chunk ' + (options.id or ''), detail: options.continue.toString())
+        return false
+
+    return {cmd, options, code, id}
+
+
+
+  runCodeChunk: (codeChunk=null)->
+    codeChunk = @getNearestCodeChunk() if not codeChunk
+    return if not codeChunk
+    return if codeChunk.classList.contains('running')
+
+    parseResult = @parseCodeChunk(codeChunk)
+    return if !parseResult
+    {code, options, cmd, id} = parseResult
+
+    if !id
       return atom.notifications.addError('Code chunk error', detail: 'id is not found or just updated.')
-    else
-      id = idMatch[1]
 
     codeChunk.classList.add('running')
     if @codeChunksData[id]
@@ -739,13 +812,27 @@ class MarkdownPreviewEnhancedView extends ScrollView
     else
       @codeChunksData[id] = {running: true}
 
-    codeChunkAPI.run code, @rootDirectoryPath, cmd, options, (error, data, options)=>
-      return if error
+    # check options `element`
+    if options.element
+      outputElement = codeChunk.getElementsByClassName('output-element')?[0]
+      if !outputElement # create and append `output-element` div
+        outputElement = document.createElement 'div'
+        outputElement.classList.add 'output-element'
+        codeChunk.appendChild outputElement
 
+      outputElement.innerHTML = options.element
+    else
+      codeChunk.getElementsByClassName('output-element')?[0]?.remove()
+      outputElement = null
+
+    codeChunkAPI.run code, @fileDirectoryPath, cmd, options, (error, data, options)=>
       # get new codeChunk
       codeChunk = document.getElementById('code_chunk_' + id)
       return if not codeChunk
       codeChunk.classList.remove('running')
+
+      return if error # or !data
+      data = (data or '').toString()
 
       outputDiv = codeChunk.getElementsByClassName('output-div')?[0]
       if !outputDiv
@@ -761,20 +848,36 @@ class MarkdownPreviewEnhancedView extends ScrollView
         imageData = Buffer(data).toString('base64')
         imageElement.setAttribute 'src',  "data:image/png;charset=utf-8;base64,#{imageData}"
         outputDiv.appendChild imageElement
+      else if options.output == 'markdown'
+        {html} = @parseMD(data, {@fileDirectoryPath, @projectDirectoryPath})
+        outputDiv.innerHTML = html
       else if options.output == 'none'
         outputDiv.remove()
         outputDiv = null
       else
-        if data.length
+        if data?.length
           preElement = document.createElement 'pre'
           preElement.innerText = data
+          preElement.classList.add('editor-colors')
+          preElement.classList.add('lang-text')
           outputDiv.appendChild preElement
 
       if outputDiv
         codeChunk.appendChild outputDiv
         @scrollMap = null
 
-      @codeChunksData[id] = {running: false, outputDiv}
+      # check matplotlib | mpl
+      if options.matplotlib or options.mpl
+        scriptElements = outputDiv.getElementsByTagName('script')
+        if scriptElements.length
+          window.d3 ?= require('../dependencies/mpld3/d3.v3.min.js')
+          window.mpld3 ?= require('../dependencies/mpld3/mpld3.v0.3.min.js')
+          for scriptElement in scriptElements
+            code = scriptElement.innerHTML
+            allowUnsafeNewFunction -> allowUnsafeEval ->
+              eval(code)
+
+      @codeChunksData[id] = {running: false, outputDiv, outputElement}
 
   runAllCodeChunks: ()->
     codeChunks = @element.getElementsByClassName('code-chunk')
@@ -909,6 +1012,9 @@ class MarkdownPreviewEnhancedView extends ScrollView
     if typeof(MathJax) == 'undefined'
       return loadMathJax document, ()=> @renderMathJax()
 
+    if @mathJaxProcessEnvironments
+      return MathJax.Hub.Queue ['Typeset', MathJax.Hub, @element], ()=> @scrollMap = null
+
     els = @element.getElementsByClassName('mathjax-exps')
     return if !els.length
 
@@ -953,18 +1059,18 @@ class MarkdownPreviewEnhancedView extends ScrollView
   convert './a.txt' '/a.txt'
   ###
   resolveFilePath: (filePath='', relative=false)->
-    if filePath.match(/^(http|https|file|atom)\:\/\//)
+    if filePath.match(protocolsWhiteListRegExp)
       return filePath
     else if filePath.startsWith('/')
       if relative
-        return path.relative(@rootDirectoryPath, path.resolve(@projectDirectoryPath, '.'+filePath))
+        return path.relative(@fileDirectoryPath, path.resolve(@projectDirectoryPath, '.'+filePath))
       else
         return 'file:///'+path.resolve(@projectDirectoryPath, '.'+filePath)
     else
       if relative
         return filePath
       else
-        return 'file:///'+path.resolve(@rootDirectoryPath, filePath)
+        return 'file:///'+path.resolve(@fileDirectoryPath, filePath)
 
   ## Utilities
   openInBrowser: (isForPresentationPrint=false)->
@@ -1000,7 +1106,87 @@ class MarkdownPreviewEnhancedView extends ScrollView
 
     exec "#{cmd} #{filePath}"
 
-  getHTMLContent: ({isForPrint, offline, useRelativeImagePath, phantomjsType})->
+  ##
+  ## {Function} callback (htmlContent)
+  insertCodeChunksResult: (htmlContent)->
+    # insert outputDiv and outputElement accordingly
+    cheerio ?= require 'cheerio'
+    $ = cheerio.load(htmlContent, {decodeEntities: false})
+    codeChunks = $('.code-chunk')
+    jsCode = ''
+    requireCache = {} # key is path
+    scriptsStr = ""
+
+    for codeChunk in codeChunks
+      $codeChunk = $(codeChunk)
+      dataArgs = $codeChunk.attr('data-args').unescape()
+
+      options = null
+      try
+        allowUnsafeEval ->
+          options = eval("({#{dataArgs}})")
+      catch e
+        continue
+
+      id = options.id
+      continue if !id
+
+      cmd = options.cmd or $codeChunk.attr('data-lang')
+      code = $codeChunk.attr('data-code').unescape()
+
+      outputDiv = @codeChunksData[id]?.outputDiv
+      outputElement = @codeChunksData[id]?.outputElement
+
+      if outputDiv # append outputDiv result
+        $codeChunk.append("<div class=\"output-div\">#{outputDiv.innerHTML}</div>")
+        if options.matplotlib or options.mpl
+          # remove innerHTML of <div id="fig_..."></div>
+          # this is for fixing mpld3 exporting issue.
+          gs = $('.output-div > div', $codeChunk)
+          if gs
+            for g in gs
+              $g = $(g)
+              if $g.attr('id')?.match(/fig\_/)
+                $g.html('')
+
+          ss = $('.output-div > script', $codeChunk)
+          if ss
+            for s in ss
+              $s = $(s)
+              c = $s.html()
+              $s.remove()
+              jsCode += (c + '\n')
+
+      if options.element
+        $codeChunk.append("<div class=\"output-element\">#{options.element}</div>")
+
+      if cmd == 'javascript'
+        requires = options.require or []
+        if typeof(requires) == 'string'
+          requires = [requires]
+        requiresStr = ""
+        for requirePath in requires
+          # TODO: css
+          if requirePath.match(/^(http|https)\:\/\//)
+            if (!requireCache[requirePath])
+              requireCache[requirePath] = true
+              scriptsStr += "<script src=\"#{requirePath}\"></script>\n"
+          else
+            requirePath = path.resolve(@fileDirectoryPath, requirePath)
+            if !requireCache[requirePath]
+              requiresStr += (fs.readFileSync(requirePath, {encoding: 'utf-8'}) + '\n')
+              requireCache[requirePath] = true
+
+        jsCode += (requiresStr + code + '\n')
+
+    html = $.html()
+    html += "#{scriptsStr}\n" if scriptsStr
+    html += "<script data-js-code>#{jsCode}</script>" if jsCode
+    return html
+
+  ##
+  # {Function} callback (htmlContent)
+  getHTMLContent: ({isForPrint, offline, useRelativeImagePath, phantomjsType}, callback)->
     isForPrint ?= false
     offline ?= false
     useRelativeImagePath ?= false
@@ -1011,10 +1197,14 @@ class MarkdownPreviewEnhancedView extends ScrollView
     useGitHubSyntaxTheme = atom.config.get('markdown-preview-enhanced.useGitHubSyntaxTheme')
     mathRenderingOption = atom.config.get('markdown-preview-enhanced.mathRenderingOption')
 
-    res = @parseMD(@formatStringBeforeParsing(@editor.getText()), {useRelativeImagePath, @rootDirectoryPath, @projectDirectoryPath, markdownPreview: this, hideFrontMatter: true})
+    res = @parseMD(@formatStringBeforeParsing(@editor.getText()), {useRelativeImagePath, @fileDirectoryPath, @projectDirectoryPath, markdownPreview: this, hideFrontMatter: true})
     htmlContent = @formatStringAfterParsing(res.html)
     slideConfigs = res.slideConfigs
     yamlConfig = res.yamlConfig or {}
+
+
+    # replace code chunks inside htmlContent
+    htmlContent = @insertCodeChunksResult htmlContent
 
     # as for example black color background doesn't produce nice pdf
     # therefore, I decide to print only github style...
@@ -1030,6 +1220,7 @@ class MarkdownPreviewEnhancedView extends ScrollView
     else if mathRenderingOption == 'MathJax'
       inline = atom.config.get('markdown-preview-enhanced.indicatorForMathRenderingInline')
       block = atom.config.get('markdown-preview-enhanced.indicatorForMathRenderingBlock')
+      mathJaxProcessEnvironments = atom.config.get('markdown-preview-enhanced.mathJaxProcessEnvironments')
       if offline
         mathStyle = "
         <script type=\"text/x-mathjax-config\">
@@ -1037,6 +1228,7 @@ class MarkdownPreviewEnhancedView extends ScrollView
             messageStyle: 'none',
             tex2jax: {inlineMath: #{inline},
                       displayMath: #{block},
+                      processEnvironments: #{mathJaxProcessEnvironments},
                       processEscapes: true}
           });
         </script>
@@ -1051,6 +1243,7 @@ class MarkdownPreviewEnhancedView extends ScrollView
             messageStyle: 'none',
             tex2jax: {inlineMath: #{inline},
                       displayMath: #{block},
+                      processEnvironments: #{mathJaxProcessEnvironments},
                       processEscapes: true}
           });
         </script>
@@ -1203,7 +1396,7 @@ class MarkdownPreviewEnhancedView extends ScrollView
 
     # presentation speaker notes
     # copy dependency files
-    if !offline and htmlContent.indexOf('[{"src":"revealjs_deps/notes.js","async":true}]')
+    if !offline and htmlContent.indexOf('[{"src":"revealjs_deps/notes.js","async":true}]') >= 0
       depsDirName = path.resolve(path.dirname(dest), 'revealjs_deps')
       depsDir = new Directory(depsDirName)
       depsDir.create().then (flag)->
@@ -1459,7 +1652,7 @@ module.exports = config || {}
 
   ## EBOOK
   generateEbook: (dest)->
-    {html, yamlConfig} = @parseMD(@formatStringBeforeParsing(@editor.getText()), {isForEbook: true, @rootDirectoryPath, @projectDirectoryPath, hideFrontMatter:true})
+    {html, yamlConfig} = @parseMD(@formatStringBeforeParsing(@editor.getText()), {isForEbook: true, @fileDirectoryPath, @projectDirectoryPath, hideFrontMatter:true})
     html = @formatStringAfterParsing(html)
 
     ebookConfig = null
@@ -1474,7 +1667,7 @@ module.exports = config || {}
       if ebookConfig.cover # change cover to absolute path if necessary
         cover = ebookConfig.cover
         if cover.startsWith('./') or cover.startsWith('../')
-          cover = path.resolve(@rootDirectoryPath, cover)
+          cover = path.resolve(@fileDirectoryPath, cover)
           ebookConfig.cover = cover
         else if cover.startsWith('/')
           cover = path.resolve(@projectDirectoryPath, '.'+cover)
@@ -1525,7 +1718,7 @@ module.exports = config || {}
 
         try
           text = fs.readFileSync(filePath, {encoding: 'utf-8'})
-          {html} = @parseMD @formatStringBeforeParsing(text), {isForEbook: true, projectDirectoryPath: @projectDirectoryPath, rootDirectoryPath: path.dirname(filePath)}
+          {html} = @parseMD @formatStringBeforeParsing(text), {isForEbook: true, projectDirectoryPath: @projectDirectoryPath, fileDirectoryPath: path.dirname(filePath)}
           html = @formatStringAfterParsing(html)
 
           # add to TOC
@@ -1562,7 +1755,7 @@ module.exports = config || {}
         (callback)=>
           httpSrc = img.getAttribute('src')
           savePath = Math.random().toString(36).substr(2, 9) + '_' + path.basename(httpSrc)
-          savePath =  path.resolve(@rootDirectoryPath, savePath)
+          savePath =  path.resolve(@fileDirectoryPath, savePath)
 
           stream = request(httpSrc).pipe(fs.createWriteStream(savePath))
 
@@ -1671,7 +1864,7 @@ module.exports = config || {}
       end = content.indexOf('---\n', 4)
       content = content.slice(end+4)
 
-    pandocConvert content, {@rootDirectoryPath, @projectDirectoryPath, sourceFilePath: @editor.getPath()}, data, (err, outputFilePath)->
+    pandocConvert content, {@fileDirectoryPath, @projectDirectoryPath, sourceFilePath: @editor.getPath()}, data, (err, outputFilePath)->
       if err
         return atom.notifications.addError 'pandoc error', detail: err
       atom.notifications.addInfo "File #{path.basename(outputFilePath)} was created", detail: "path: #{outputFilePath}"
@@ -1695,7 +1888,7 @@ module.exports = config || {}
     if config.front_matter
       content = matter.stringify(content, config.front_matter)
 
-    markdownConvert content, {@projectDirectoryPath, @rootDirectoryPath}, config
+    markdownConvert content, {@projectDirectoryPath, @fileDirectoryPath}, config
 
   copyToClipboard: ->
     return false if not @editor
